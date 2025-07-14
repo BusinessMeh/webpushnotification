@@ -9,8 +9,8 @@ app.use(cors());
 app.use(bodyParser.json());
 
 const vapidKeys = {
-  publicKey: 'YOUR_PUBLIC_KEY_HERE',
-  privateKey: 'YOUR_PRIVATE_KEY_HERE'
+  publicKey: 'BCxCPq7jOLla0pa43gQ1QwANoihzOYENM859BM3XFu1hrg5-ubbit0oJ265ZPiPU62mRQ48hGgkjkchj11wVg84',
+  privateKey: 'oAzO_KQM4qo9eEIZxZJ9uO_4Zn1RMFBZKHfahkD4BQY'
 };
 
 webpush.setVapidDetails('mailto:admin@example.com', vapidKeys.publicKey, vapidKeys.privateKey);
