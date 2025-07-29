@@ -14,11 +14,11 @@ app.use(express.json());
 const subscribersFile = path.join(__dirname, 'subscribers.json');
 
 // Generate your VAPID keys once using webpush.generateVAPIDKeys()
-const publicVapidKey = '<YOUR_PUBLIC_KEY>';
-const privateVapidKey = '<YOUR_PRIVATE_KEY>';
+const publicVapidKey = 'BErkuiUzklIVOtFaMp5E_iV6p4vZMUOYQBCgTL4ghcmAwriAi6zerf3GGE6spVrMD4Dsy9wdbx056ud1Lpzw8Jg';
+const privateVapidKey = 'RYnu6pVak1leTxetWLrPRq3j6_LiR6AO0FIwQb3ZGCo';
 
 webpush.setVapidDetails(
-  'mailto:test@example.com',
+  'mailto:mehulproofficial@gmail.com',
   publicVapidKey,
   privateVapidKey
 );
