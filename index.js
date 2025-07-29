@@ -1,25 +1,20 @@
-require('dotenv').config();
 const express = require('express');
 const webpush = require('web-push');
 const cors = require('cors');
+
 const app = express();
 
-// In-memory storage
-let subscribers = [];
-
-// 1. STRICT CORS CONFIGURATION
+// 1. Allowed CORS Origins
 const allowedOrigins = [
   'https://palpay.space',
   'https://www.palpay.space',
   'http://localhost:3000'
 ];
 
+// 2. Middleware: CORS & JSON
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -28,19 +23,22 @@ const corsOptions = {
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+  optionsSuccessStatus: 200
 };
 
-// 2. MIDDLEWARE ORDER MATTERS!
-app.options('*', cors(corsOptions)); // Enable preflight for ALL routes
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// 3. VAPID KEYS SETUP
+// 3. VAPID Keys (from Railway Environment Variables)
 const vapidKeys = {
-  publicKey: process.env.BArsxo2a3tdrdpCi3p-GJGp7seNNXnxjRb9h06GgyyxJaxe3xvoQXnpmBbL9cASK_W0gcI2FQIfEo6ET6j7VMO0,
-  privateKey: process.env.EHAUUf_3DaCunW45mgpoudwZ1KXKh_c5GiapUwNH2RU
+  publicKey: process.env.VAPID_PUBLIC_KEY,
+  privateKey: process.env.VAPID_PRIVATE_KEY
 };
+
+if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
+  console.error('❌ VAPID keys are missing! Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in Railway.');
+  process.exit(1);
+}
 
 webpush.setVapidDetails(
   'mailto:mehulproofficial@gmail.com',
@@ -48,53 +46,79 @@ webpush.setVapidDetails(
   vapidKeys.privateKey
 );
 
-// 4. EXPLICIT PREFLIGHT HANDLER
-app.use((req, res, next) => {
-  if (req.method === 'OPTIONS') {
-    res.header('Access-Control-Allow-Origin', allowedOrigins.join(', '));
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    return res.status(200).end();
-  }
-  next();
-});
+// 4. In-memory storage for subscribers
+let subscribers = [];
 
-// 5. ROUTES WITH EXPLICIT HEADERS
+// 5. Routes
+
+// Get public VAPID key
 app.get('/vapidPublicKey', (req, res) => {
-  res.header('Access-Control-Allow-Origin', allowedOrigins);
+  res.header('Access-Control-Allow-Origin', '*');
   res.send(vapidKeys.publicKey);
 });
 
+// Subscribe user
 app.post('/subscribe', (req, res) => {
-  res.header('Access-Control-Allow-Origin', allowedOrigins);
-  // ... rest of your subscribe logic
+  const subscription = req.body;
+
+  if (!subscription || !subscription.endpoint) {
+    return res.status(400).json({ error: 'Invalid subscription object' });
+  }
+
+  // Prevent duplicates
+  if (!subscribers.find(sub => sub.endpoint === subscription.endpoint)) {
+    subscribers.push(subscription);
+    console.log('✅ New subscriber added:', subscription.endpoint);
+  }
+
+  res.status(201).json({ message: 'Subscribed successfully' });
 });
 
+// View subscribers (optional for debug)
 app.get('/subscribers', (req, res) => {
-  res.header('Access-Control-Allow-Origin', allowedOrigins);
-  // ... rest of your subscribers logic
+  res.json({ count: subscribers.length, subscribers });
 });
 
-app.post('/send', (req, res) => {
-  res.header('Access-Control-Allow-Origin', allowedOrigins);
-  // ... rest of your send logic
+// Send notification to all
+app.post('/send', async (req, res) => {
+  const { title, body, icon, url } = req.body;
+
+  const payload = JSON.stringify({
+    title: title || 'Notification',
+    body: body || '',
+    icon: icon || '',
+    url: url || '/'
+  });
+
+  const results = await Promise.allSettled(
+    subscribers.map(sub =>
+      webpush.sendNotification(sub, payload).catch(err => {
+        console.error('❌ Failed to send to:', sub.endpoint);
+        return { error: true, endpoint: sub.endpoint };
+      })
+    )
+  );
+
+  res.json({
+    sent: results.filter(r => r.status === 'fulfilled').length,
+    failed: results.filter(r => r.status === 'rejected').length
+  });
 });
 
-// 6. HEALTH CHECK
+// Health check
 app.get('/health', (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
   res.status(200).send('OK');
 });
 
-// 7. ERROR HANDLER
+// Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.header('Access-Control-Allow-Origin', allowedOrigins);
   res.status(500).json({ error: err.message });
 });
 
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
 });
