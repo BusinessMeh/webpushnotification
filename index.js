@@ -1,76 +1,50 @@
-
+require('dotenv').config(); // Add this at the top
 const express = require('express');
 const webpush = require('web-push');
-const cors = require('cors');
-const fs = require('fs');
 const path = require('path');
-
+const cors = require('cors');
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// Middleware
+app.use(cors({
+  origin: ['https://your-hostinger-domain.com'] // Replace with your frontend domain
+}));
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-const subscribersFile = path.join(__dirname, 'subscribers.json');
+// In-memory storage for subscribers
+let subscribers = [];
 
-// Generate your VAPID keys once using webpush.generateVAPIDKeys()
-const publicVapidKey = 'BErkuiUzklIVOtFaMp5E_iV6p4vZMUOYQBCgTL4ghcmAwriAi6zerf3GGE6spVrMD4Dsy9wdbx056ud1Lpzw8Jg';
-const privateVapidKey = 'RYnu6pVak1leTxetWLrPRq3j6_LiR6AO0FIwQb3ZGCo';
+// VAPID keys - now using environment variables
+const vapidKeys = {
+  publicKey: process.env.BArsxo2a3tdrdpCi3p-GJGp7seNNXnxjRb9h06GgyyxJaxe3xvoQXnpmBbL9cASK_W0gcI2FQIfEo6ET6j7VMO0,
+  privateKey: process.env.EHAUUf_3DaCunW45mgpoudwZ1KXKh_c5GiapUwNH2RU
+};
+
+// Validate VAPID keys
+if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
+  console.error('You must set the VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY environment variables.');
+  process.exit(1);
+}
 
 webpush.setVapidDetails(
-  'mailto:mehulproofficial@gmail.com',
-  publicVapidKey,
-  privateVapidKey
+  process.env.VAPID_EMAIL || 'mailto:mehulproofficial@gmail.com',
+  vapidKeys.publicKey,
+  vapidKeys.privateKey
 );
 
-function loadSubscribers() {
-  if (!fs.existsSync(subscribersFile)) return [];
-  return JSON.parse(fs.readFileSync(subscribersFile, 'utf8') || '[]');
-}
+// Routes (same as before, but with Railway-specific optimizations)
+// ... [keep all your existing routes] ...
 
-function saveSubscribers(subscribers) {
-  fs.writeFileSync(subscribersFile, JSON.stringify(subscribers, null, 2));
-}
-
-app.get('/vapidPublicKey', (req, res) => {
-  res.send(publicVapidKey);
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
 });
 
-app.post('/subscribe', (req, res) => {
-  const subscription = req.body.subscription;
-  const device = req.body.device || 'unknown';
-  const time = new Date().toISOString();
-
-  let subscribers = loadSubscribers();
-  const exists = subscribers.some(sub => sub.endpoint === subscription.endpoint);
-
-  if (!exists) {
-    subscribers.push({ ...subscription, device, time });
-    saveSubscribers(subscribers);
-  }
-
-  res.status(201).json({ message: 'Subscribed successfully' });
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`VAPID Public Key: ${vapidKeys.publicKey}`);
 });
-
-app.get('/subscribers', (req, res) => {
-  const subscribers = loadSubscribers();
-  res.json({ count: subscribers.length, subscribers });
-});
-
-app.post('/send', (req, res) => {
-  const { title, message, image, link, endpoints } = req.body;
-  const subscribers = loadSubscribers();
-  const targets = subscribers.filter(sub => endpoints.includes(sub.endpoint));
-
-  const payload = JSON.stringify({ title, message, image, link });
-
-  Promise.all(
-    targets.map(sub =>
-      webpush.sendNotification(sub, payload).catch(err => console.error(err))
-    )
-  )
-    .then(() => res.sendStatus(200))
-    .catch(err => res.status(500).json({ error: err.message }));
-});
-
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
