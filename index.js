@@ -5,7 +5,7 @@ const cors = require('cors');
 const app = express();
 
 // Enable CORS for your Hostinger domain
-app.use(cors({ origin: 'https://your-hostinger-domain.com' }));
+app.use(cors({ origin: 'https://palpay.space' }));
 app.use(express.json());
 
 // VAPID Keys (set in Railway Variables)
